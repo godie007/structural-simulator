@@ -1,0 +1,5 @@
+{
+  "name": "Gemini 3D Structural Simulator",
+  "description": "An interactive 3D tool to design and simulate simple structures. Users can place nodes and beams, adjust environmental factors like terrain slope and soil resistance, and run an earthquake simulation to test stability. An AI assistant powered by Gemini provides structural analysis and recommendations.",
+  "requestFramePermissions": []
+}
