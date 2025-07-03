@@ -2,6 +2,8 @@
 
 Un simulador profesional de estructuras 3D con física realista para análisis de resistencia sísmica y comportamiento estructural.
 
+![Vista previa del simulador estructural 3D](shots/shot1.png)
+
 ## 🏗️ Características Principales
 
 ### Simulación Física Avanzada

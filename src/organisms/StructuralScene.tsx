@@ -139,15 +139,17 @@ const SceneContent: React.FC<StructuralSceneProps> = (props) => {
   const foundationNodes = nodes.filter(n => n.id.startsWith('FOUNDATION_'));
   const upperNodes = nodes.filter(n => !n.id.startsWith('FOUNDATION_'));
 
-  // Mapear columnas (de cada dado a su nodo superior)
-  const columns = foundationNodes.map(fNode => {
-    const upper = upperNodes.find(n => Math.abs(n.position[0] - fNode.position[0]) < 0.1 && Math.abs(n.position[2] - fNode.position[2]) < 0.1 && n.position[1] > fNode.position[1]);
-    if (!upper) return null;
-    return <Column key={fNode.id + '-' + upper.id} from={fNode.position} to={upper.position} />;
+  // Mapear columnas (todas las columnas del modelo)
+  const columnBeams = beams.filter(beam => beam.profileType === 'HEA');
+  const columns = columnBeams.map(beam => {
+    const nodeA = getNodeById(nodes, beam.nodeIds[0]);
+    const nodeB = getNodeById(nodes, beam.nodeIds[1]);
+    if (!nodeA || !nodeB) return null;
+    return <Column key={beam.id} from={nodeA.position} to={nodeB.position} />;
   });
 
-  // Mapear vigas
-  const beamMeshes = beams.map(beam => {
+  // Mapear vigas (solo las que no son columnas)
+  const beamMeshes = beams.filter(beam => beam.profileType !== 'HEA').map(beam => {
     const nodeA = getNodeById(nodes, beam.nodeIds[0]);
     const nodeB = getNodeById(nodes, beam.nodeIds[1]);
     if (!nodeA || !nodeB) return null;
