@@ -2,7 +2,7 @@ import React from 'react';
 import Card from '../atoms/Card';
 import Button from '../atoms/Button';
 import Slider from '../atoms/Slider';
-import { EarthquakeConfig, SimulationConfig } from '../types';
+import { EarthquakeConfig, SimulationConfig, StructuralBeam } from '../types';
 
 interface ControlPanelProps {
   simulationConfig: SimulationConfig;
@@ -12,8 +12,12 @@ interface ControlPanelProps {
   onStartSimulation: () => void;
   onStopSimulation: () => void;
   onAnalyzeStructure: () => void;
+  onResetDamage?: () => void;
+  onDeselectElement?: () => void;
   isSimulating: boolean;
   isAnalyzing: boolean;
+  hasSelectedElement?: boolean;
+  selectedElement?: StructuralBeam | null;
 }
 
 const ControlPanel: React.FC<ControlPanelProps> = ({
@@ -24,8 +28,12 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
   onStartSimulation,
   onStopSimulation,
   onAnalyzeStructure,
+  onResetDamage,
+  onDeselectElement,
   isSimulating,
-  isAnalyzing
+  isAnalyzing,
+  hasSelectedElement,
+  selectedElement
 }) => {
   const handleGravityChange = (axis: 'x' | 'y' | 'z', value: number) => {
     const newGravity = [...simulationConfig.gravity] as [number, number, number];
@@ -191,6 +199,125 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
             disabled={isSimulating || isAnalyzing}
           >
             {isAnalyzing ? 'Analizando...' : 'Analizar Estructura'}
+          </Button>
+          
+          {onResetDamage && (
+            <Button
+              onClick={onResetDamage}
+              variant="secondary"
+              fullWidth
+              disabled={isSimulating}
+            >
+              🔧 Resetear Daño Estructural
+            </Button>
+          )}
+          
+          {hasSelectedElement && onDeselectElement && (
+            <Button
+              onClick={onDeselectElement}
+              variant="secondary"
+              fullWidth
+              disabled={isSimulating}
+            >
+              🖱️ Deseleccionar Elemento
+            </Button>
+          )}
+        </div>
+      </Card>
+
+      {selectedElement && (
+        <Card title="Elemento Seleccionado" variant="elevated">
+          <div className="space-y-3">
+            <div className="bg-blue-900/50 border border-blue-600 rounded-lg p-3">
+              <h4 className="text-sm font-medium text-blue-200 mb-2">
+                📍 {selectedElement.id}
+              </h4>
+              <div className="text-xs text-gray-300 space-y-1">
+                <p>Tipo: {selectedElement.profileType}</p>
+                <p>Material: {selectedElement.material}</p>
+                <p>Longitud: {selectedElement.length.toFixed(2)} m</p>
+                {selectedElement.damageLevel !== undefined && (
+                  <p>Daño: {(selectedElement.damageLevel * 100).toFixed(1)}%</p>
+                )}
+                {selectedElement.currentStress !== undefined && (
+                  <p>Esfuerzo: {selectedElement.currentStress.toFixed(1)} MPa</p>
+                )}
+              </div>
+            </div>
+            
+            {!isSimulating && (
+              <div className="bg-red-900/50 border border-red-600 rounded-lg p-3">
+                <p className="text-xs text-red-200 mb-2">
+                  🗑️ Para eliminar este elemento:
+                </p>
+                <p className="text-xs text-gray-300">
+                  Presiona <kbd className="bg-gray-700 px-1.5 py-0.5 rounded text-white">Delete</kbd> o <kbd className="bg-gray-700 px-1.5 py-0.5 rounded text-white">Backspace</kbd>
+                </p>
+                <p className="text-xs text-yellow-300 mt-2">
+                  ⚠️ Esto afectará la distribución de cargas y puntos críticos durante el terremoto.
+                </p>
+              </div>
+            )}
+          </div>
+        </Card>
+      )}
+
+      <Card title="Pruebas Rápidas de Daño" variant="elevated">
+        <div className="space-y-3">
+          <Button
+            onClick={() => onEarthquakeConfigChange({
+              ...earthquakeConfig,
+              intensity: 4.0,
+              frequency: 8,
+              duration: 8
+            })}
+            variant="warning"
+            fullWidth
+            disabled={isSimulating}
+          >
+            🌋 Terremoto Leve (4.0 Richter)
+          </Button>
+          
+          <Button
+            onClick={() => onEarthquakeConfigChange({
+              ...earthquakeConfig,
+              intensity: 7.0,
+              frequency: 12,
+              duration: 12
+            })}
+            variant="danger"
+            fullWidth
+            disabled={isSimulating}
+          >
+            🌋 Terremoto Moderado (7.0 Richter)
+          </Button>
+          
+          <Button
+            onClick={() => onEarthquakeConfigChange({
+              ...earthquakeConfig,
+              intensity: 9.0,
+              frequency: 18,
+              duration: 20
+            })}
+            variant="danger"
+            fullWidth
+            disabled={isSimulating}
+          >
+            🌋 Terremoto Severo (9.0 Richter)
+          </Button>
+          
+          <Button
+            onClick={() => onEarthquakeConfigChange({
+              ...earthquakeConfig,
+              intensity: 12.0,
+              frequency: 25,
+              duration: 30
+            })}
+            variant="danger"
+            fullWidth
+            disabled={isSimulating}
+          >
+            💥 Terremoto Catastrófico (12.0 Richter)
           </Button>
         </div>
       </Card>

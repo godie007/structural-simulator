@@ -1,6 +1,7 @@
 import React from 'react';
 import ControlPanel from '../molecules/ControlPanel';
 import AnalysisPanel from '../molecules/AnalysisPanel';
+import ElementEditor from '../molecules/ElementEditor';
 import StructuralScene from '../organisms/StructuralScene';
 import { useStructuralSimulator } from '../hooks/useStructuralSimulator';
 import Button from '../atoms/Button';
@@ -15,13 +16,18 @@ const SimulatorLayout: React.FC = () => {
     isAnalyzing,
     analysisResult,
     simulationResults,
+    selectedElement,
     updateSimulationConfig,
     updateEarthquakeConfig,
-
     startSimulation,
     stopSimulation,
     analyzeStructure,
-    updateNodePosition
+    resetStructuralDamage,
+    selectElement,
+    updateBeamProperties,
+    updateNodePositionWithAdaptation,
+    deleteElement,
+    collapseSimulation
   } = useStructuralSimulator();
 
   const [isHelpOpen, setIsHelpOpen] = React.useState(false);
@@ -75,8 +81,12 @@ const SimulatorLayout: React.FC = () => {
                 onStartSimulation={startSimulation}
                 onStopSimulation={stopSimulation}
                 onAnalyzeStructure={analyzeStructure}
+                onResetDamage={resetStructuralDamage}
+                onDeselectElement={() => selectElement(null)}
                 isSimulating={isSimulating}
                 isAnalyzing={isAnalyzing}
+                hasSelectedElement={!!selectedElement}
+                selectedElement={selectedElement}
               />
             ) : (
               <AnalysisPanel
@@ -99,9 +109,23 @@ const SimulatorLayout: React.FC = () => {
           earthquakeConfig={earthquakeConfig}
           viewMode={uiConfig.viewMode}
           isSimulating={isSimulating}
-          onNodePositionUpdate={updateNodePosition}
+          selectedElement={selectedElement}
+          collapseSimulation={collapseSimulation}
+          onNodePositionUpdate={updateNodePositionWithAdaptation}
+          onElementSelect={selectElement}
         />
       </div>
+
+      {/* Editor de elementos */}
+      {selectedElement && (
+        <ElementEditor
+          selectedElement={selectedElement}
+          nodes={structuralModel.nodes}
+          onUpdateElement={updateBeamProperties}
+          onUpdateNode={updateNodePositionWithAdaptation}
+          onClose={() => selectElement(null)}
+        />
+      )}
 
       {/* Botón de ayuda */}
       <div className="absolute top-4 right-4 z-20">

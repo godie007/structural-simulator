@@ -1,17 +1,19 @@
-import React, { useRef, useMemo, Suspense, useEffect } from 'react';
-import { Canvas, useFrame, useThree } from '@react-three/fiber';
+import React, { useRef, Suspense } from 'react';
+import { Canvas, useFrame } from '@react-three/fiber';
 import { OrbitControls, Text } from '@react-three/drei';
-import { Physics } from '@react-three/cannon';
+
 import * as THREE from 'three';
 import { 
   StructuralNode, 
   StructuralBeam, 
   StructuralFoundation, 
-  SimulationConfig,
-  EarthquakeConfig,
-  ViewMode 
+  SimulationConfig, 
+  EarthquakeConfig, 
+  ViewMode,
+  CollapseSimulation
 } from '../types';
-import { PROFILE_DIMENSIONS } from '../constants/materials';
+import { createHEAShape, createIPEShape, createProfileGeometry } from '../utils/profileGeometries';
+
 
 interface StructuralSceneProps {
   nodes: StructuralNode[];
@@ -21,7 +23,10 @@ interface StructuralSceneProps {
   earthquakeConfig: EarthquakeConfig;
   viewMode: ViewMode;
   isSimulating: boolean;
+  selectedElement: StructuralBeam | null;
+  collapseSimulation?: CollapseSimulation | null;
   onNodePositionUpdate?: (nodeId: string, position: [number, number, number]) => void;
+  onElementSelect?: (element: StructuralBeam | null) => void;
 }
 
 // Utilidad para obtener nodos por id
@@ -95,9 +100,17 @@ const MovingGround: React.FC<{
   );
 };
 
-// Componente para columnas (pilares)
-const Column: React.FC<{ from: [number, number, number]; to: [number, number, number]; height?: number; }>
- = ({ from, to, height }) => {
+// Componente para columnas (HEA)
+const Column: React.FC<{ 
+  from: [number, number, number]; 
+  to: [number, number, number]; 
+  damageLevel?: number;
+  isBroken?: boolean;
+  beam: StructuralBeam;
+  isSelected: boolean;
+  onClick: () => void;
+}> = ({ from, to, damageLevel = 0, isBroken = false, isSelected, onClick }) => {
+  const meshRef = useRef<THREE.Mesh>(null);
   const start = new THREE.Vector3(...from);
   const end = new THREE.Vector3(...to);
   const delta = new THREE.Vector3().subVectors(end, start);
@@ -105,17 +118,69 @@ const Column: React.FC<{ from: [number, number, number]; to: [number, number, nu
   const mid = new THREE.Vector3().addVectors(start, end).multiplyScalar(0.5);
   const up = new THREE.Vector3(0, 1, 0);
   const quaternion = new THREE.Quaternion().setFromUnitVectors(up, delta.clone().normalize());
+
+  // Determinar color basado en el daño y selección
+  let color = "#374151";
+  let isCritical = false;
+  
+  if (isSelected) {
+    color = "#3b82f6";
+  } else if (isBroken) {
+    color = "#dc2626";
+  } else if (damageLevel > 0.7) {
+    color = "#ea580c";
+    isCritical = true;
+  } else if (damageLevel > 0.5) {
+    color = "#f59e0b";
+    isCritical = true;
+  } else if (damageLevel > 0.3) {
+    color = "#ca8a04";
+  }
+
+  // Animación pulsante para elementos críticos
+  useFrame(({ clock }) => {
+    if (meshRef.current && isCritical && !isSelected) {
+      const pulseFactor = 0.8 + 0.2 * Math.sin(clock.elapsedTime * 4);
+      meshRef.current.scale.setScalar(pulseFactor);
+    } else if (meshRef.current) {
+      meshRef.current.scale.setScalar(1);
+    }
+  });
+
+  // Geometría HEA
+  const shape = createHEAShape();
+  const geometry = createProfileGeometry(shape, length);
+  geometry.center();
+
   return (
-    <mesh position={mid.toArray()} quaternion={quaternion} castShadow>
-      <cylinderGeometry args={[0.15, 0.15, length, 16]} />
-      <meshStandardMaterial color="#888" metalness={0.3} roughness={0.7} />
-    </mesh>
+    <group position={mid.toArray()} quaternion={quaternion}>
+      <mesh 
+        ref={meshRef}
+        rotation={[Math.PI / 2, 0, 0]}
+        castShadow
+        onClick={onClick}
+        onPointerOver={() => { document.body.style.cursor = 'pointer'; }}
+        onPointerOut={() => { document.body.style.cursor = 'default'; }}
+        userData={{ isElement: true }}
+      >
+        <primitive object={geometry} attach="geometry" />
+        <meshStandardMaterial color={color} metalness={0.3} roughness={0.7} />
+      </mesh>
+    </group>
   );
 };
 
-// Componente para vigas
-const Beam: React.FC<{ from: [number, number, number]; to: [number, number, number]; }>
- = ({ from, to }) => {
+// Componente para vigas (IPE)
+const Beam: React.FC<{ 
+  from: [number, number, number]; 
+  to: [number, number, number];
+  damageLevel?: number;
+  isBroken?: boolean;
+  beam: StructuralBeam;
+  isSelected: boolean;
+  onClick: () => void;
+}> = ({ from, to, damageLevel = 0, isBroken = false, isSelected, onClick }) => {
+  const meshRef = useRef<THREE.Mesh>(null);
   const start = new THREE.Vector3(...from);
   const end = new THREE.Vector3(...to);
   const delta = new THREE.Vector3().subVectors(end, start);
@@ -123,20 +188,81 @@ const Beam: React.FC<{ from: [number, number, number]; to: [number, number, numb
   const mid = new THREE.Vector3().addVectors(start, end).multiplyScalar(0.5);
   const up = new THREE.Vector3(0, 1, 0);
   const quaternion = new THREE.Quaternion().setFromUnitVectors(up, delta.clone().normalize());
+
+  // Determinar color basado en el daño y selección
+  let color = "#374151";
+  let isCritical = false;
+  
+  if (isSelected) {
+    color = "#3b82f6";
+  } else if (isBroken) {
+    color = "#dc2626";
+  } else if (damageLevel > 0.7) {
+    color = "#ea580c";
+    isCritical = true;
+  } else if (damageLevel > 0.5) {
+    color = "#f59e0b";
+    isCritical = true;
+  } else if (damageLevel > 0.3) {
+    color = "#ca8a04";
+  }
+
+  // Animación pulsante para elementos críticos
+  useFrame(({ clock }) => {
+    if (meshRef.current && isCritical && !isSelected) {
+      const pulseFactor = 0.8 + 0.2 * Math.sin(clock.elapsedTime * 4);
+      meshRef.current.scale.setScalar(pulseFactor);
+    } else if (meshRef.current) {
+      meshRef.current.scale.setScalar(1);
+    }
+  });
+
+  // Geometría IPE
+  const shape = createIPEShape();
+  const geometry = createProfileGeometry(shape, length);
+  geometry.center();
+
   return (
-    <mesh position={mid.toArray()} quaternion={quaternion} castShadow>
-      <cylinderGeometry args={[0.09, 0.09, length, 12]} />
-      <meshStandardMaterial color="#374151" metalness={0.5} roughness={0.3} />
-    </mesh>
+    <group position={mid.toArray()} quaternion={quaternion}>
+      <mesh 
+        ref={meshRef}
+        rotation={[Math.PI / 2, 0, 0]}
+        castShadow
+        onClick={onClick}
+        onPointerOver={() => { document.body.style.cursor = 'pointer'; }}
+        onPointerOut={() => { document.body.style.cursor = 'default'; }}
+        userData={{ isElement: true }}
+      >
+        <primitive object={geometry} attach="geometry" />
+        <meshStandardMaterial color={color} metalness={0.5} roughness={0.3} />
+      </mesh>
+    </group>
   );
+};
+
+// Componente para efecto de cámara durante colapso
+const CameraShake: React.FC<{ isCollapsing: boolean }> = ({ isCollapsing }) => {
+  useFrame(({ camera, clock }) => {
+    if (isCollapsing) {
+      const intensity = 0.3;
+      const shakeX = Math.sin(clock.elapsedTime * 25) * intensity;
+      const shakeY = Math.cos(clock.elapsedTime * 30) * intensity;
+      const shakeZ = Math.sin(clock.elapsedTime * 20) * intensity;
+      
+      camera.position.add(new THREE.Vector3(shakeX, shakeY, shakeZ));
+    }
+  });
+  return null;
 };
 
 // Escena principal
 const SceneContent: React.FC<StructuralSceneProps> = (props) => {
-  const { nodes, beams, foundations, earthquakeConfig, viewMode, isSimulating } = props;
+  const { nodes, beams, foundations, earthquakeConfig, isSimulating, selectedElement, collapseSimulation, onElementSelect } = props;
+
+  // Mover aquí la declaración de foundationNodes
+  const foundationNodes = nodes.filter(n => n.id.startsWith('FOUNDATION_'));
 
   // Identificar nodos de fundación y nodos superiores
-  const foundationNodes = nodes.filter(n => n.id.startsWith('FOUNDATION_'));
   const upperNodes = nodes.filter(n => !n.id.startsWith('FOUNDATION_'));
 
   // Mapear columnas (todas las columnas del modelo)
@@ -145,7 +271,18 @@ const SceneContent: React.FC<StructuralSceneProps> = (props) => {
     const nodeA = getNodeById(nodes, beam.nodeIds[0]);
     const nodeB = getNodeById(nodes, beam.nodeIds[1]);
     if (!nodeA || !nodeB) return null;
-    return <Column key={beam.id} from={nodeA.position} to={nodeB.position} />;
+    return (
+      <Column 
+        key={beam.id} 
+        from={nodeA.position} 
+        to={nodeB.position}
+        damageLevel={beam.damageLevel}
+        isBroken={beam.isBroken}
+        beam={beam}
+        isSelected={selectedElement?.id === beam.id}
+        onClick={() => onElementSelect?.(beam)}
+      />
+    );
   });
 
   // Mapear vigas (solo las que no son columnas)
@@ -153,7 +290,18 @@ const SceneContent: React.FC<StructuralSceneProps> = (props) => {
     const nodeA = getNodeById(nodes, beam.nodeIds[0]);
     const nodeB = getNodeById(nodes, beam.nodeIds[1]);
     if (!nodeA || !nodeB) return null;
-    return <Beam key={beam.id} from={nodeA.position} to={nodeB.position} />;
+    return (
+      <Beam 
+        key={beam.id} 
+        from={nodeA.position} 
+        to={nodeB.position}
+        damageLevel={beam.damageLevel}
+        isBroken={beam.isBroken}
+        beam={beam}
+        isSelected={selectedElement?.id === beam.id}
+        onClick={() => onElementSelect?.(beam)}
+      />
+    );
   });
 
   // Nodos superiores como esferas
@@ -164,11 +312,97 @@ const SceneContent: React.FC<StructuralSceneProps> = (props) => {
     </mesh>
   ));
 
+  // Resaltado para elemento seleccionado
+  const selectedElementHighlight = selectedElement ? (() => {
+    const nodeA = getNodeById(nodes, selectedElement.nodeIds[0]);
+    const nodeB = getNodeById(nodes, selectedElement.nodeIds[1]);
+    if (!nodeA || !nodeB) return null;
+
+    const start = new THREE.Vector3(...nodeA.position);
+    const end = new THREE.Vector3(...nodeB.position);
+    const delta = new THREE.Vector3().subVectors(end, start);
+    const length = delta.length();
+    const mid = new THREE.Vector3().addVectors(start, end).multiplyScalar(0.5);
+    const up = new THREE.Vector3(0, 1, 0);
+    const quaternion = new THREE.Quaternion().setFromUnitVectors(up, delta.clone().normalize());
+
+    return (
+      <mesh 
+        position={mid.toArray()} 
+        quaternion={quaternion}
+        userData={{ isElement: true }}
+      >
+        <cylinderGeometry args={[0.25, 0.25, length, 16]} />
+        <meshBasicMaterial color="#3b82f6" transparent opacity={0.3} />
+      </mesh>
+    );
+  })() : null;
+
+  // Elementos que están cayendo
+  const fallingElements = collapseSimulation?.fallingElements.map(element => {
+    const beam = beams.find(b => b.id === element.elementId);
+    if (!beam) return null;
+
+    const nodeA = getNodeById(nodes, beam.nodeIds[0]);
+    const nodeB = getNodeById(nodes, beam.nodeIds[1]);
+    if (!nodeA || !nodeB) return null;
+
+    // Calcular dirección original del elemento
+    const originalStart = new THREE.Vector3(...nodeA.position);
+    const originalEnd = new THREE.Vector3(...nodeB.position);
+    const originalDelta = new THREE.Vector3().subVectors(originalEnd, originalStart);
+    const length = originalDelta.length();
+    const up = new THREE.Vector3(0, 1, 0);
+    const quaternion = new THREE.Quaternion().setFromUnitVectors(up, originalDelta.clone().normalize());
+
+    // Usar la posición actual del elemento que está cayendo
+    const currentPosition = element.currentPosition;
+
+    // Determinar color basado en el estado
+    let color = "#dc2626"; // Rojo por defecto
+    if (element.isOnGround) {
+      color = "#7f1d1d"; // Rojo oscuro cuando está en el suelo
+    } else if (element.impactEnergy > 1000) {
+      color = "#ea580c"; // Naranja si tiene mucha energía de impacto
+    }
+
+    return (
+      <mesh 
+        key={`falling-${element.elementId}`}
+        position={currentPosition} 
+        quaternion={quaternion}
+        userData={{ isElement: true, isFalling: true }}
+      >
+        <cylinderGeometry args={[0.2, 0.2, length, 16]} />
+        <meshStandardMaterial color={color} metalness={0.3} roughness={0.7} />
+      </mesh>
+    );
+  }) || [];
+
+  // Verificar si hay colapso activo
+  const isCollapsing = Boolean(collapseSimulation?.isActive && collapseSimulation.fallingElements.length > 0);
+
   return (
     <>
       <OrbitControls enablePan enableZoom enableRotate />
+      <CameraShake isCollapsing={isCollapsing} />
       <ambientLight intensity={0.7} />
       <directionalLight position={[10, 15, 5]} intensity={1.5} castShadow />
+      
+      {/* Fondo invisible para detectar clics en espacio vacío */}
+      <mesh 
+        position={[0, 0, 0]} 
+        onClick={() => onElementSelect?.(null)}
+        onPointerOver={(e) => {
+          if (!e.object.userData.isElement) {
+            document.body.style.cursor = 'default';
+          }
+        }}
+      >
+        <planeGeometry args={[1000, 1000]} />
+        <meshBasicMaterial transparent opacity={0} />
+      </mesh>
+      
       <MovingGround
         foundations={foundations}
         isSimulating={isSimulating}
@@ -178,6 +412,9 @@ const SceneContent: React.FC<StructuralSceneProps> = (props) => {
         {columns}
         {beamMeshes}
         {upperNodeSpheres}
+        {selectedElementHighlight}
+        {/* Renderizar elementos que están cayendo */}
+        {fallingElements}
       </MovingGround>
       {/* Indicador de simulación */}
       {isSimulating && (

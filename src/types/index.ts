@@ -24,6 +24,12 @@ export interface StructuralBeam {
   elasticModulus: number;
   yieldStrength: number;
   mass: number;
+  // Propiedades para física realista
+  currentStress?: number;
+  damageLevel?: number; // 0 = intacto, 1 = completamente dañado
+  isBroken?: boolean;
+  criticalStress?: number; // Esfuerzo crítico para rotura
+  fatigueFactor?: number; // Factor de fatiga acumulada
 }
 
 export interface StructuralFoundation {
@@ -108,6 +114,66 @@ export interface SimulationEvent {
   intensity: number;
   duration: number;
   affectedElements: string[];
+}
+
+// Tipos para física realista
+export interface DamageEvent {
+  type: 'element_broken' | 'progressive_collapse';
+  timestamp: number;
+  elementId: string;
+  stressLevel: number;
+  damageLevel: number;
+  cause: string;
+}
+
+export interface StructuralIntegrity {
+  overallHealth: number; // 0-100%
+  criticalElements: string[];
+  damageEvents: DamageEvent[];
+  collapseRisk: number; // 0-100%
+  remainingCapacity: number; // % de capacidad restante
+}
+
+// Nuevos tipos para simulación física de colapso
+export interface PhysicsBody {
+  id: string;
+  position: [number, number, number];
+  velocity: [number, number, number];
+  mass: number;
+  isBroken: boolean;
+  isFalling: boolean;
+  collisionRadius: number;
+  connectedElements: string[];
+}
+
+export interface CollisionEvent {
+  elementId: string;
+  collidedWith: string;
+  impactForce: number;
+  timestamp: number;
+  position: [number, number, number];
+}
+
+export interface FallingElement {
+  elementId: string;
+  originalPosition: [number, number, number];
+  currentPosition: [number, number, number];
+  velocity: [number, number, number];
+  mass: number;
+  isOnGround: boolean;
+  impactEnergy: number;
+  hasCollided: boolean;
+}
+
+export interface CollapseSimulation {
+  fallingElements: FallingElement[];
+  collisionEvents: CollisionEvent[];
+  groundLevel: number;
+  gravity: [number, number, number];
+  airResistance: number;
+  groundFriction: number;
+  isActive: boolean;
+  timestamp: number;
 }
 
 // Tipos de exportación
